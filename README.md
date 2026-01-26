@@ -2,7 +2,7 @@
 
 This repo implements speculative actions in a chess environment using LangChain for LLM calls and LangGraph for orchestration.
 
-For architecture details, see `project_structure.md`. For a high-level overview, see `project_summary.md`.
+For architecture details, see `PROJECT_STRUCTURE_LANGCHAIN.md`. For a high-level overview, see `project_summary.md`.
 
 ## Prerequisites
 - Python 3.10+
@@ -22,26 +22,26 @@ OPENAI_API_KEY=your-key-here
 
 ## Run the game
 ```bash
-PYTHONPATH=./langchain:./shared python3 -m langchain.chess_speculation_langchain
+PYTHONPATH=./langchain:./core python3 -m langchain.chess_speculation_langchain
 ```
 
 ## Run examples
 ```bash
-PYTHONPATH=./langchain:./shared python3 -m langchain.example_usage_langchain
+PYTHONPATH=./langchain:./core python3 -m langchain.example_usage_langchain
 ```
 
 ## Run tests
 ```bash
-PYTHONPATH=./langchain:./shared python3 -m pytest langchain/test_chess_speculation_langchain.py -v
+PYTHONPATH=./langchain:./core python3 -m pytest langchain/test_chess_speculation_langchain.py -v
 ```
 
 ## Benchmark
 Quick run:
 ```bash
-python3 benchmark_langchain.py --quick
+python3 tools/benchmark_langchain.py --quick
 ```
 
 Custom:
 ```bash
-python3 benchmark_langchain.py --k 2,3 --runs 2 --max-turns 5
+python3 tools/benchmark_langchain.py --k 2,3 --runs 2 --max-turns 5
 ```

@@ -36,7 +36,7 @@ Speculative Framework:
 - `langchain/speculative_framework_langchain.py`: cache + speculation orchestration.
 - `langchain/chess_speculation_langchain.py`: LangGraph state machine.
 - `langchain/test_chess_speculation_langchain.py`: tests.
-- `benchmark_langchain.py`: benchmark harness.
+- `tools/benchmark_langchain.py`: benchmark harness.
 
 ## What to Know
 - **LangGraph** handles workflow (nodes, edges, routing).

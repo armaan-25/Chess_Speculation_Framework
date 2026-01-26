@@ -14,10 +14,10 @@ def test_unit_tests():
     print("=" * 60)
     
     import chess
-    from chess_environment import ChessEnvironment
-    from speculative_framework_langchain import SpeculativeCache, PendingAction, SpeculativeFramework
-    from actor_langchain import Actor
-    from speculator_langchain import Speculator
+    from core.chess_environment import ChessEnvironment
+    from langchain.speculative_framework_langchain import SpeculativeCache, PendingAction, SpeculativeFramework
+    from langchain.actor_langchain import Actor
+    from langchain.speculator_langchain import Speculator
     
     # Test 1: Chess Environment
     print("\n1. Testing Chess Environment...")
@@ -100,7 +100,7 @@ async def test_integration():
         print("   Set it with: export OPENAI_API_KEY='your-key-here'")
         return False
     
-    from chess_speculation_langchain import ChessSpeculationGame
+    from langchain.chess_speculation_langchain import ChessSpeculationGame
     
     print("\nPlaying a short game (3 turns)...")
     print("This will make API calls and may take 10-30 seconds.")

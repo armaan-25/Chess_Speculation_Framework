@@ -9,7 +9,7 @@ import chess
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.chess_environment import ChessEnvironment, GameState
+from core.chess_environment import ChessEnvironment, GameState
 from langchain.actor_langchain import Actor
 from langchain.speculator_langchain import Speculator
 from langchain.speculative_framework_langchain import SpeculativeFramework, PendingAction

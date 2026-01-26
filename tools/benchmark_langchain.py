@@ -146,7 +146,7 @@ class SpeculatorWrapper:
 
 def _load_dotenv_if_present() -> None:
     repo_root = Path(__file__).parent
-    env_paths = [repo_root / ".env", repo_root / "shared" / ".env"]
+    env_paths = [repo_root / ".env", repo_root / "core" / ".env"]
     for env_path in env_paths:
         if env_path.exists():
             try:

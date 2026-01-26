@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.chess_environment import GameState
+from core.chess_environment import GameState
 from langchain.actor_langchain import Actor
 from langchain.speculator_langchain import Speculator
 
@@ -130,7 +130,7 @@ class SpeculativeFramework:
         """Call the actual handler."""
         if handler == "decide_move":
             # Reconstruct state from FEN
-            from shared.chess_environment import ChessEnvironment
+            from core.chess_environment import ChessEnvironment
             env = ChessEnvironment(initial_fen=params["state_fen"])
             state = env.get_state()
             
