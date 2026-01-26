@@ -36,6 +36,8 @@ PYTHONPATH=./langchain:./core python3 -m pytest langchain/test_chess_speculation
 ```
 
 ## Benchmark
+Note: benchmarking is still being worked on; results and flags may change.
+
 Quick run:
 ```bash
 python3 tools/benchmark_langchain.py --quick
