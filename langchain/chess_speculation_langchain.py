@@ -27,6 +27,9 @@ class GameStateDict(TypedDict):
     time_saved: float
     predictions_made: int
     predictions_hit: int
+    white_moves_count: int
+    black_moves_count: int
+    max_moves_per_player: Optional[int]  # None means play full game
 
 
 class ChessSpeculationGame:
@@ -176,60 +179,64 @@ class ChessSpeculationGame:
                 framework.execute_api_call(handler, params)
             )
             
-            # Step 4: Speculator predicts moves in parallel
-            spec_start_time = time.time()
-            predicted_moves = await speculator.predict_moves(game_state, k=self.k)
-            spec_time = time.time() - spec_start_time
-            
-            # Step 5: Launch speculative API calls for next steps
-            # Map predicted moves to their speculative actions
-            predicted_to_actions = {}
+            # Step 4: Speculator predicts moves in parallel (skip if k=0 for baseline)
+            predicted_moves = []
             speculative_actions = []
+            predicted_to_actions = {}
+            spec_time = 0.0
             
-            for predicted_move in predicted_moves:
-                next_state = game_state.apply_move(predicted_move)
-                next_handler, next_params = framework.actor.construct_api_call(next_state)
+            if self.k > 0:
+                spec_start_time = time.time()
+                predicted_moves = await speculator.predict_moves(game_state, k=self.k)
+                spec_time = time.time() - spec_start_time
                 
-                # Pre-launch speculative call (handles caching internally)
-                pending = framework.pre_launch_speculative_call(next_handler, next_params)
-                
-                if pending:
-                    predicted_to_actions[predicted_move] = pending
-                    speculative_actions.append(pending)
+                # Step 5: Launch speculative API calls for next steps
+                # Map predicted moves to their speculative actions
+                for predicted_move in predicted_moves:
+                    next_state = game_state.apply_move(predicted_move)
+                    next_handler, next_params = framework.actor.construct_api_call(next_state)
+                    
+                    # Pre-launch speculative call (handles caching internally)
+                    pending = framework.pre_launch_speculative_call(next_handler, next_params)
+                    
+                    if pending:
+                        predicted_to_actions[predicted_move] = pending
+                        speculative_actions.append(pending)
             
             # Step 6: Wait for Actor response
             result = await actor_future
             actual_move = result["move"]
             actor_time = time.time() - actor_start_time
             
-            # Step 7: Validate predictions and commit/rollback
-            prediction_hit = False
-            hit_predicted_move = None
-            
-            for predicted_move in predicted_moves:
-                if framework.validate_prediction(predicted_move, actual_move):
-                    prediction_hit = True
-                    hit_predicted_move = predicted_move
-                    # Time saved: speculator finished before actor
-                    if spec_time < actor_time:
-                        state["time_saved"] += (actor_time - spec_time)
-                    state["predictions_hit"] += 1
-                    break
-            
-            state["predictions_made"] += len(predicted_moves)
-            
-            # Commit: Keep the correct speculative action, cancel others
-            if prediction_hit:
-                # Keep the correct speculative action (it's already cached and running)
-                # Cancel all other incorrect speculative actions
-                actions_to_cancel = [
-                    action for move, action in predicted_to_actions.items()
-                    if move != hit_predicted_move
-                ]
-                await framework.cancel_speculative_actions(actions_to_cancel)
-            else:
-                # No prediction hit - cancel all speculative actions
-                await framework.cancel_speculative_actions(speculative_actions)
+            # Step 7: Validate predictions and commit/rollback (only if speculation enabled)
+            if self.k > 0:
+                prediction_hit = False
+                hit_predicted_move = None
+                
+                for predicted_move in predicted_moves:
+                    if framework.validate_prediction(predicted_move, actual_move):
+                        prediction_hit = True
+                        hit_predicted_move = predicted_move
+                        # Time saved: speculator finished before actor
+                        if spec_time < actor_time:
+                            state["time_saved"] += (actor_time - spec_time)
+                        state["predictions_hit"] += 1
+                        break
+                
+                state["predictions_made"] += len(predicted_moves)
+                
+                # Commit: Keep the correct speculative action, cancel others
+                if prediction_hit:
+                    # Keep the correct speculative action (it's already cached and running)
+                    # Cancel all other incorrect speculative actions
+                    actions_to_cancel = [
+                        action for move, action in predicted_to_actions.items()
+                        if move != hit_predicted_move
+                    ]
+                    await framework.cancel_speculative_actions(actions_to_cancel)
+                else:
+                    # No prediction hit - cancel all speculative actions
+                    await framework.cancel_speculative_actions(speculative_actions)
         
         # Step 8: Apply move and update state
         new_state = game_state.apply_move(actual_move)
@@ -237,6 +244,11 @@ class ChessSpeculationGame:
         state["last_move"] = actual_move
         state["moves_history"].append(actual_move.uci())
         state["turn_number"] += 1
+        # Update move counts per player
+        if player_color == chess.WHITE:
+            state["white_moves_count"] = state.get("white_moves_count", 0) + 1
+        else:
+            state["black_moves_count"] = state.get("black_moves_count", 0) + 1
         state["current_player"] = "black" if player_color == chess.WHITE else "white"
         
         return state
@@ -249,23 +261,40 @@ class ChessSpeculationGame:
     
     def should_continue(self, state: GameStateDict) -> str:
         """Determine next step based on game state."""
+        # Check if game is over (checkmate, stalemate, etc.)
         if state["is_game_over"]:
             return "end"
+        
+        # Check if we've reached the move limit per player
+        max_moves = state.get("max_moves_per_player")
+        if max_moves is not None:
+            white_moves = state.get("white_moves_count", 0)
+            black_moves = state.get("black_moves_count", 0)
+            
+            # If either player has reached the limit, end the game
+            if white_moves >= max_moves or black_moves >= max_moves:
+                state["is_game_over"] = True
+                return "end"
         
         if state["current_player"] == "white":
             return "continue_white"
         else:
             return "continue_black"
     
-    async def play_game(self, max_turns: int = 30) -> dict:
-        """Play a complete game with speculation.
+    async def play_game(self, max_turns: Optional[int] = None, max_moves_per_player: Optional[int] = None) -> dict:
+        """Play a game with speculation.
         
         Args:
-            max_turns: Maximum number of turns to play
+            max_turns: Maximum number of turns to play (deprecated, use max_moves_per_player)
+            max_moves_per_player: Maximum moves per player (None = play full game until checkmate/stalemate)
             
         Returns:
             Dictionary with game results and statistics
         """
+        # Support legacy max_turns parameter
+        if max_turns is not None and max_moves_per_player is None:
+            max_moves_per_player = max_turns
+        
         initial_state = self.environment.get_state()
         
         state: GameStateDict = {
@@ -278,7 +307,10 @@ class ChessSpeculationGame:
             "is_game_over": False,
             "time_saved": 0.0,
             "predictions_made": 0,
-            "predictions_hit": 0
+            "predictions_hit": 0,
+            "white_moves_count": 0,
+            "black_moves_count": 0,
+            "max_moves_per_player": max_moves_per_player
         }
         
         start_time = time.time()
