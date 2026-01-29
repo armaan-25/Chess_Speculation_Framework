@@ -121,6 +121,7 @@ class ChessSpeculationGame:
         return await self._execute_turn(
             state, 
             self.framework_white, 
+            self.framework_black,
             self.speculator_white,
             chess.WHITE
         )
@@ -130,6 +131,7 @@ class ChessSpeculationGame:
         return await self._execute_turn(
             state,
             self.framework_black,
+            self.framework_white,
             self.speculator_black,
             chess.BLACK
         )
@@ -138,6 +140,7 @@ class ChessSpeculationGame:
         self,
         state: GameStateDict,
         framework: SpeculativeFramework,
+        next_framework: SpeculativeFramework,
         speculator: Speculator,
         player_color: chess.Color
     ) -> GameStateDict:
@@ -196,8 +199,8 @@ class ChessSpeculationGame:
                     next_state = game_state.apply_move(predicted_move)
                     next_handler, next_params = framework.actor.construct_api_call(next_state)
                     
-                    # Pre-launch speculative call (handles caching internally)
-                    pending = framework.pre_launch_speculative_call(next_handler, next_params)
+                    # Pre-launch speculative call into the *next* player's framework cache
+                    pending = next_framework.pre_launch_speculative_call(next_handler, next_params)
                     
                     if pending:
                         predicted_to_actions[predicted_move] = pending

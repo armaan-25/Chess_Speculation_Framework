@@ -325,13 +325,13 @@ async def _run_langchain_once(
 
     original_execute = game._execute_turn
 
-    async def instrumented_execute(state, framework, spec, player_color):
+    async def instrumented_execute(state, framework, next_framework, spec, player_color):
         turn_id = metrics.next_turn_id
         metrics.next_turn_id += 1
         token = TURN_ID.set(turn_id)
         start = time.time()
         try:
-            result_state = await original_execute(state, framework, spec, player_color)
+            result_state = await original_execute(state, framework, next_framework, spec, player_color)
         finally:
             TURN_ID.reset(token)
         metrics.turn_times.append(time.time() - start)

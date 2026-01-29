@@ -2,6 +2,7 @@
 Speculator: Fast predictive agent for chess moves.
 """
 from typing import List, Optional
+import os
 import chess
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -16,9 +17,9 @@ class Speculator:
     
     def __init__(
         self,
-        model_name: str = "gpt-4o-mini",  # Faster, cheaper model
-        temperature: float = 0.3,  # Lower temperature for more predictable outputs
-        max_tokens: int = 512,  # Fewer tokens for speed
+        model_name: str = "gpt-3.5-turbo",  # Lighter, cheaper model by default
+        temperature: float = 0.1,  # More deterministic predictions
+        max_tokens: int = 256,  # Fewer tokens for speed
         reasoning_effort: str = "low"
     ):
         """Initialize Speculator.
@@ -29,8 +30,9 @@ class Speculator:
             max_tokens: Fewer tokens for faster responses
             reasoning_effort: "low" for quick predictions
         """
+        resolved_model = os.getenv("SPECULATOR_MODEL", model_name)
         self.model = ChatOpenAI(
-            model=model_name,
+            model=resolved_model,
             temperature=temperature,
             max_tokens=max_tokens
         )
@@ -39,16 +41,27 @@ class Speculator:
     
     def get_system_prompt(self) -> str:
         """Get system prompt optimized for fast prediction."""
-        return """You are a chess move predictor. Your goal is to quickly predict 
-the most likely moves a strong player would make in this position.
+        return """You are a chess move predictor. Predict the most likely moves a strong player would make.
 
-Respond with the top K most likely moves in UCI format, one per line, 
-ordered by likelihood. For example:
+Use chess principles:
+- Opening: control center, develop pieces, castle early.
+- Tactics: checks, captures, threats.
+- Position: king safety, piece activity, pawn structure.
+
+Return the top K moves in UCI format, one per line, ordered by likelihood.
+Example:
 e2e4
 d2d4
 g1f3
+"""
 
-Be fast and concise. Focus on common opening moves and natural continuations."""
+    def _recent_moves_text(self, state: GameState, max_moves: int = 6) -> str:
+        """Format recent moves from the board move stack."""
+        move_stack = list(state.board.move_stack)
+        if not move_stack:
+            return "None"
+        recent = move_stack[-max_moves:]
+        return " ".join([m.uci() for m in recent])
     
     async def predict_moves(self, state: GameState, k: int = 3) -> List[chess.Move]:
         """Predict top-k most likely moves.
@@ -61,6 +74,7 @@ Be fast and concise. Focus on common opening moves and natural continuations."""
             List of predicted moves, ordered by confidence
         """
         prompt = self.environment.format_state_for_prompt(state)
+        prompt += f"\nRecent moves: {self._recent_moves_text(state)}"
         prompt += f"\nPredict the top {k} most likely moves:"
         
         messages = [
